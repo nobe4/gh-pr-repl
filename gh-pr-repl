@@ -62,11 +62,12 @@ class REPL
     q: { help: 'Quit', method: 'quit' }
   }
 
-  def initialize(branches = nil, slack_link = nil)
+  def initialize(branches = nil, slack_link = nil, show_all = false)
     @branches = branches
     @branches = [Utils.git_current_branch] unless branches && !branches.empty?
 
     @slack_link = slack_link
+    @show_all = show_all
   end
 
   def main
@@ -74,8 +75,7 @@ class REPL
       @repo, @number, @branch, closed = Utils.parse_current_branch(branch)
       @continue = true
 
-      # TODO: add a cli flag to not skip closed PRs
-      if closed == 'true'
+      if !@show_all && closed == 'true'
         puts "✅ #{@repo}/#{@branch} (#{@number})"
         next
       else
@@ -197,12 +197,21 @@ def parse_params
 
     opts.on('-sLINK', '--slack-link=LINK',
             'Deep link for slack, ref https://api.slack.com/reference/deep-linking.') do |s|
-      options[:slack] = s
-    end
+              options[:slack] = s
+            end
+    opts.on('-a', '--all',
+            'REPL through all PRs, even the closed ones') do |a|
+              options[:all] = a
+            end
+
   end.parse!
   options
 end
 
 params = parse_params
 
-REPL.new(ARGV, params[:slack]).main
+REPL.new(
+  ARGV,
+  params[:slack],
+  params[:all]
+).main
