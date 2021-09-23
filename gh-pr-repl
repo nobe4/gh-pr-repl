@@ -6,8 +6,8 @@ require 'io/console'
 
 # Misc utility class
 class Utils
-  # Tries to find the current branch from the context
-  def self.git_current_branch
+  # Tries to find the PR url from the context.
+  def self.git_current_pr_url
     # 2>&1 to prevent error output to terminal.
     result = `gh pr view --json 'url' --jq '.url' 2>&1`
 
@@ -19,17 +19,17 @@ class Utils
     result
   end
 
-  def self.parse_current_branch(current_branch)
+  def self.parse_current_reference(reference)
     # full link
-    if %r{https://github.com/([^/]+)/([^/]+)/pull/(\d+)} =~ current_branch
+    if %r{https://github.com/([^/]+)/([^/]+)/pull/(\d+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       number = Regexp.last_match(3)
-      branch, closed = `gh pr view --json 'headRefName,closed' --jq '"\\(.headRefName),\\(.closed)"' #{current_branch}`.strip.split(',')
+      branch, closed = `gh pr view --json 'headRefName,closed' --jq '"\\(.headRefName),\\(.closed)"' #{reference}`.strip.split(',')
       return [repo, number, branch, closed]
     end
 
     # owner/repo/branch style
-    if %r{([^/]+)/([^/]+)/(.+)} =~ current_branch
+    if %r{([^/]+)/([^/]+)/(.+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       branch = Regexp.last_match(3)
       number, closed = `gh pr view --repo #{repo} --json 'number,closed' --jq '"\\(.number),\\(.closed)"' #{branch}`.strip.split(',')
@@ -38,7 +38,7 @@ class Utils
 
     # TODO: parse only branch, assume current owner/repo
 
-    puts "Couldn't parse #{current_branch}"
+    puts "Couldn't parse #{reference}"
     exit(1)
   end
 end
@@ -62,17 +62,17 @@ class REPL
     q: { help: 'Quit', method: 'quit' }
   }
 
-  def initialize(branches = nil, slack_link = nil, show_all = false)
-    @branches = branches
-    @branches = [Utils.git_current_branch] unless branches && !branches.empty?
+  def initialize(references = nil, slack_link = nil, show_all = false)
+    @references = references
+    @references = [Utils.git_current_pr_url] unless references && !references.empty?
 
     @slack_link = slack_link
     @show_all = show_all
   end
 
   def main
-    @branches.each do |branch|
-      @repo, @number, @branch, closed = Utils.parse_current_branch(branch)
+    @references.each do |reference|
+      @repo, @number, @branch, closed = Utils.parse_current_reference(reference)
       @continue = true
 
       if !@show_all && closed == 'true'
@@ -193,18 +193,21 @@ end
 def parse_params
   options = {}
   OptionParser.new do |opts|
-    opts.banner = 'Usage: gh-pr-repl [options] [branch-name ...]'
+    opts.banner = <<~EndOfBanner
+    Usage: gh-pr-repl [options] [reference ...]
 
-    opts.on('-sLINK', '--slack-link=LINK',
-            'Deep link for slack, ref https://api.slack.com/reference/deep-linking.') do |s|
-              options[:slack] = s
-            end
-    opts.on('-a', '--all',
-            'REPL through all PRs, even the closed ones') do |a|
-              options[:all] = a
-            end
+    If no reference is passed, `gh` will try to infer from the current context.
+    References can be of the following form:
+    - https://github.com/<owner>/<repo>/pull/<number>
+    - <owner>/<repo>/<branch>
+    EndOfBanner
 
-  end.parse!
+    opts.separator "\nOptions:"
+
+    opts.on('-sLINK', '--slack-link=LINK', 'Deep link for slack, ref https://api.slack.com/reference/deep-linking.')
+    opts.on('-a', '--all', 'Loop through all PRs, even the closed ones.')
+
+  end.parse!(into: options)
   options
 end
 
