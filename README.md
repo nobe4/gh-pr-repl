@@ -25,20 +25,20 @@ $ gh extension install nobe4/gh-pr-repl
 With a single branch:
 
 ```shell
-$ gh-pr-repl
+$ gh pr-repl
 # Will use the PR associated with the current branch.
 
-$ gh-pr-repl cli/cli/demo-branch
+$ gh pr-repl cli/cli/demo-branch
 # Will use the PR associated with https://github.com/cli/cli/tree/demo-branch
 
-$ gh-pr-repl https://github.com/cli/cli/pull/1
+$ gh pr-repl https://github.com/cli/cli/pull/1
 # Will use https://github.com/cli/cli/pull/1
 ```
 
 With many branches:
 
 ```shell
-$ gh-pr-repl cli/cli/demo-branch https://github.com/cli/cli/pull/1
+$ gh pr-repl cli/cli/demo-branch https://github.com/cli/cli/pull/1
 # Will use the PR associated with https://github.com/cli/cli/tree/demo-branch
 # and https://github.com/cli/cli/pull/1
 ```
@@ -46,7 +46,7 @@ $ gh-pr-repl cli/cli/demo-branch https://github.com/cli/cli/pull/1
 Getting help:
 
 ```shell
-$ gh-pr-repl
+$ gh pr-repl
 cli/cli/demobranch > h
 # shows the help
 ```
