@@ -20,25 +20,37 @@ class Utils
   end
 
   def self.parse_current_reference(reference)
-    # full link
+    # https://github.com/<owner>/<repo>/pull/<number>
     if %r{https://github.com/([^/]+)/([^/]+)/pull/(\d+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       number = Regexp.last_match(3)
       branch, closed = `gh pr view --json 'headRefName,closed' --jq '"\\(.headRefName),\\(.closed)"' #{reference}`.strip.split(',')
-      return [repo, number, branch, closed]
+
+      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
     end
 
-    # owner/repo/branch style
+    # <owner>/<repo>/<branch>
     if %r{([^/]+)/([^/]+)/(.+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       branch = Regexp.last_match(3)
       number, closed = `gh pr view --repo #{repo} --json 'number,closed' --jq '"\\(.number),\\(.closed)"' #{branch}`.strip.split(',')
-      return [repo, number, branch, closed]
+
+      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
     end
 
-    # TODO: parse only branch, assume current owner/repo
+    # Try to infer the current repo, if we can't do this, we can't continue.
+    repo = `gh repo view --json 'owner,name' --jq '"\\(.owner.login)/\\(.name)"'`.strip
+    unless $?.success? # rubocop:disable Style/SpecialGlobalVars
+      puts "⚠️ Couldn't find current repo , exiting."
+      exit(1)
+    end
 
-    puts "Couldn't parse #{reference}"
+    # <branch> or <pull_number>
+    # gh can find the right one automatically
+    branch, number, closed = `gh pr view --repo #{repo} --json 'headRefName,number,closed' --jq '"\\(.headRefName),\\(.number),\\(.closed)"' #{reference}`.strip.split(',')
+    return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
+
+    puts "⚠️ Couldn't parse '#{reference}', exiting."
     exit(1)
   end
 end
@@ -62,7 +74,7 @@ class REPL
     q: { help: 'Quit', method: 'quit' }
   }
 
-  def initialize(references = nil, slack_link = nil, show_all = false)
+  def initialize(references = nil, slack_link = nil, show_all: false)
     @references = references
     @references = [Utils.git_current_pr_url] unless references && !references.empty?
 
@@ -190,31 +202,29 @@ class REPL
   end
 end
 
-def parse_params
+# Called only from the CLI
+if __FILE__ == $PROGRAM_NAME
   options = {}
   OptionParser.new do |opts|
-    opts.banner = <<~EndOfBanner
-    Usage: gh-pr-repl [options] [reference ...]
+    opts.banner = <<~ENDOFBANNER
+      Usage: gh-pr-repl [options] [reference ...]
 
-    If no reference is passed, `gh` will try to infer from the current context.
-    References can be of the following form:
-    - https://github.com/<owner>/<repo>/pull/<number>
-    - <owner>/<repo>/<branch>
-    EndOfBanner
+      If no reference is passed, `gh` will try to infer from the current context.
+      References can be of the following form:
+      - https://github.com/<owner>/<repo>/pull/<number>
+      - <owner>/<repo>/<branch>
+      - <branch> (<owner>/<repo> is fetched from the context)
+    ENDOFBANNER
 
     opts.separator "\nOptions:"
 
     opts.on('-sLINK', '--slack-link=LINK', 'Deep link for slack, ref https://api.slack.com/reference/deep-linking.')
     opts.on('-a', '--all', 'Loop through all PRs, even the closed ones.')
-
   end.parse!(into: options)
-  options
+
+  REPL.new(
+    ARGV,
+    options[:slack],
+    options[:all]
+  ).main
 end
-
-params = parse_params
-
-REPL.new(
-  ARGV,
-  params[:slack],
-  params[:all]
-).main

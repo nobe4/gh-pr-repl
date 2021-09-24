@@ -43,7 +43,7 @@ $ gh-pr-repl cli/cli/demo-branch https://github.com/cli/cli/pull/1
 # and https://github.com/cli/cli/pull/1
 ```
 
-Getting help:
+Getting assistance:
 
 ```shell
 $ gh-pr-repl
