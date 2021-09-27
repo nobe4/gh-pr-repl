@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Extend the string class for color rendering
+class String
+  def green
+    "\e[32m#{self}\e[0m"
+  end
+
+  def yellow
+    "\e[33m#{self}\e[0m"
+  end
+
+  def red
+    "\e[31m#{self}\e[0m"
+  end
+end

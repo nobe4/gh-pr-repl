@@ -1,210 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require 'optparse'
-require 'io/console'
-
-# Misc utility class
-class Utils
-  # Tries to find the PR url from the context.
-  def self.git_current_pr_url
-    # 2>&1 to prevent error output to terminal.
-    result = `gh pr view --json 'url' --jq '.url' 2>&1`
-
-    unless $?.success? # rubocop:disable Style/SpecialGlobalVars
-      puts "Couldn't find the current repo or branch."
-      exit(1)
-    end
-
-    result
-  end
-
-  def self.parse_current_reference(reference)
-    # https://github.com/<owner>/<repo>/pull/<number>
-    if %r{https://github.com/([^/]+)/([^/]+)/pull/(\d+)} =~ reference
-      repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
-      number = Regexp.last_match(3)
-      branch, closed = `gh pr view --json 'headRefName,closed' --jq '"\\(.headRefName),\\(.closed)"' #{reference}`.strip.split(',')
-
-      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
-    end
-
-    # <owner>/<repo>/<branch>
-    if %r{([^/]+)/([^/]+)/(.+)} =~ reference
-      repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
-      branch = Regexp.last_match(3)
-      number, closed = `gh pr view --repo #{repo} --json 'number,closed' --jq '"\\(.number),\\(.closed)"' #{branch}`.strip.split(',')
-
-      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
-    end
-
-    # Try to infer the current repo, if we can't do this, we can't continue.
-    repo = `gh repo view --json 'owner,name' --jq '"\\(.owner.login)/\\(.name)"'`.strip
-    unless $?.success? # rubocop:disable Style/SpecialGlobalVars
-      puts "⚠️ Couldn't find current repo , exiting."
-      exit(1)
-    end
-
-    # <branch> or <pull_number>
-    # gh can find the right one automatically
-    branch, number, closed = `gh pr view --repo #{repo} --json 'headRefName,number,closed' --jq '"\\(.headRefName),\\(.number),\\(.closed)"' #{reference}`.strip.split(',')
-    return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
-
-    puts "⚠️ Couldn't parse '#{reference}', exiting."
-    exit(1)
-  end
-end
-
-# REPL is a simple read-eval print loop that takes pull requests and adds some
-# easy processing on top of them.
-class REPL
-  # TODO: Find a way to have this list only once.
-  @@commands = { # rubocop:disable Style/ClassVars
-    h: { help: 'Show this Help', method: 'help' },
-    a: { help: 'Approve the PR, no comment', method: 'approve' },
-    m: { help: 'Merge the PR with "merge" strategy, no message', method: 'merge' },
-    k: { help: 'checKout the branch if in the right repo', method: 'checkout' },
-    d: { help: 'Deploy the branch from slack', method: 'deploy' },
-    o: { help: 'Open in browser', method: 'open' },
-    v: { help: 'View the PR with all the comments', method: 'view' },
-    s: { help: 'view the PR Status checks', method: 'status' },
-    w: { help: 'Watch the status', method: 'watch' },
-    c: { help: 'Copy the link to the clipboard', method: 'copy' },
-    n: { help: 'go to Next branch', method: 'next' },
-    q: { help: 'Quit', method: 'quit' }
-  }
-
-  def initialize(references = nil, slack_link = nil, show_all: false)
-    @references = references
-    @references = [Utils.git_current_pr_url] unless references && !references.empty?
-
-    @slack_link = slack_link
-    @show_all = show_all
-  end
-
-  def main
-    @references.each do |reference|
-      @repo, @number, @branch, closed = Utils.parse_current_reference(reference)
-      @continue = true
-
-      if !@show_all && closed == 'true'
-        puts "✅ #{@repo}/#{@branch} (#{@number})"
-        next
-      else
-        puts "🔎 #{@repo}/#{@branch} (#{@number})"
-      end
-
-      # Command loop
-      loop do
-        input = input_loop
-        process_input(input)
-
-        break unless @continue
-      end
-    end
-  end
-
-  private
-
-  def input_loop
-    # ref https://stackoverflow.com/a/27021816
-    print "#{@repo}/#{@branch} > "
-
-    # Loop until we have a valid letter
-    loop do
-      input = $stdin.getch
-
-      # Break if sent C-c
-      exit(1) if input == "\u0003"
-
-      # Only allow letters
-      next unless input.match?(/[[:alpha:]?]/)
-
-      # Display back to the user
-      puts input
-
-      return input
-    end
-  end
-
-  def process_input(input)
-    command = @@commands[input.to_sym]
-
-    unless command
-      puts "Unrecognized command #{input}, press 'h' for help."
-      return
-    end
-
-    send(command[:method])
-  end
-
-  # From here, only repl commands
-  def help
-    @@commands.each do |key, command|
-      puts "#{key} - #{command[:help]}"
-    end
-  end
-
-  def approve
-    system("gh --repo #{@repo} pr review --approve #{@branch}")
-  end
-
-  def merge
-    system("gh --repo #{@repo} pr merge --merge --delete-branch #{@branch}")
-  end
-
-  def open
-    system("gh --repo #{@repo} pr view --web #{@branch}")
-  end
-
-  def deploy
-    `echo ".deploy https://github.com/#{@repo}/pull/#{@number}" | pbcopy`
-
-    `open "#{@slack_link}"` if @slack_link
-    puts 'set -s flag for fast slack opening' unless @slack_link
-  end
-
-  def view
-    `tmux split-window -h -d "gh --repo #{@repo} pr diff #{@branch}"`
-    system("gh --repo #{@repo} pr view --comments #{@branch}")
-  end
-
-  def status
-    system("gh --repo #{@repo} pr checks #{@branch}")
-  end
-
-  def watch
-    `tmux split-window -h -d "while true; do gh --repo #{@repo} pr checks #{@branch}; sleep 1; done"`
-  end
-
-  def copy
-    `echo "https://github.com/#{@repo}/pull/#{@number}" | pbcopy`
-  end
-
-  def next
-    @continue = false
-  end
-
-  def checkout
-    # Check if we are in the right repo.
-    # If so we can checkout and do other stuff.
-    remote = `git config --get remote.origin.url`.strip
-
-    if remote == "git@github.com:#{@repo}.git"
-      system("gh --repo #{@repo} pr checkout #{@branch}")
-    else
-      puts "Cannot checkout #{@branch}, move to where #{@repo} cloned."
-    end
-  end
-
-  def quit
-    exit(0)
-  end
-end
+require_relative 'lib/repl'
 
 # Called only from the CLI
 if __FILE__ == $PROGRAM_NAME
+  # Parsing the options
   options = {}
+
   OptionParser.new do |opts|
     opts.banner = <<~ENDOFBANNER
       Usage: gh-pr-repl [options] [reference ...]
@@ -222,9 +25,11 @@ if __FILE__ == $PROGRAM_NAME
     opts.on('-a', '--all', 'Loop through all PRs, even the closed ones.')
   end.parse!(into: options)
 
+  # Calling the REPL
   REPL.new(
-    ARGV,
-    options[:slack],
-    options[:all]
-  ).main
+    slack_link: options[:slack],
+    show_all: options[:all]
+  ).main(
+    ARGV
+  )
 end
