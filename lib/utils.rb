@@ -30,9 +30,9 @@ class Utils
     if %r{([^/]+)/([^/]+)/(.+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       branch = Regexp.last_match(3)
-      number, closed = `gh pr view --repo #{repo} --json 'number,closed' --jq '"\\(.number),\\(.closed)"' #{branch}`.strip.split(',')
+      number, base, closed = `gh pr view --repo #{repo} --json 'number,baseRefName,closed' --jq '"\\(.number),\\(.baseRefName),\\(.closed)"' #{branch}`.strip.split(',')
 
-      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
+      return [repo, number, branch, base, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
     end
 
     # Try to infer the current repo, if we can't do this, we can't continue.
@@ -44,8 +44,8 @@ class Utils
 
     # <branch> or <pull_number>
     # gh can find the right one automatically
-    branch, number, closed = `gh pr view --repo #{repo} --json 'headRefName,number,closed' --jq '"\\(.headRefName),\\(.number),\\(.closed)"' #{reference}`.strip.split(',')
-    return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
+    branch, base, number, closed = `gh pr view --repo #{repo} --json 'headRefName,baseRefName,number,closed' --jq '"\\(.headRefName),\\(.baseRefName),\\(.number),\\(.closed)"' #{reference}`.strip.split(',')
+    return [repo, number, branch, base, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
 
     puts "× Couldn't parse '#{reference}', exiting.".red
     exit(1)
