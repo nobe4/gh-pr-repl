@@ -27,7 +27,7 @@ if __FILE__ == $PROGRAM_NAME
 
   # Calling the REPL
   REPL.new(
-    slack_link: options[:slack],
+    slack_link: options[:"slack-link"],
     show_all: options[:all]
   ).main(
     ARGV
