@@ -21,9 +21,9 @@ class Utils
     if %r{https://github.com/([^/]+)/([^/]+)/pull/(\d+)} =~ reference
       repo = "#{Regexp.last_match(1)}/#{Regexp.last_match(2)}"
       number = Regexp.last_match(3)
-      branch, closed = `gh pr view --json 'headRefName,closed' --jq '"\\(.headRefName),\\(.closed)"' #{reference}`.strip.split(',')
+      branch, base, closed = `gh pr view --json 'headRefName,baseRefName,closed' --jq '"\\(.headRefName),\\(.baseRefName),\\(.closed)"' #{reference}`.strip.split(',')
 
-      return [repo, number, branch, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
+      return [repo, number, branch, base, closed] if $?.success? # rubocop:disable Style/SpecialGlobalVars
     end
 
     # <owner>/<repo>/<branch>

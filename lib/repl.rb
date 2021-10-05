@@ -30,7 +30,7 @@ class REPL
   private
 
   def process_reference(reference)
-    @repo, @number, @branch, closed = Utils.parse_current_reference(reference)
+    @repo, @number, @branch, @base, closed = Utils.parse_current_reference(reference)
     @continue = true
 
     if !@show_all && closed == 'true'
@@ -151,6 +151,13 @@ class REPL
     return { help: "Go to #{'N'.red}ext branch", trigger: 'n' } if meta
 
     @continue = false
+  end
+
+  def repl_update(meta: false)
+    return { help: "#{'U'.red}pdate the PR from the base branch.", trigger: 'u' } if meta
+
+    # Create a merge commit between the base and the head.
+    `gh api '/repos/#{@repo}/merges' -f head='#{@base}' -f base='#{@branch}'`
   end
 
   def repl_checkout(meta: false)
