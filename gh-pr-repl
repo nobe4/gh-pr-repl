@@ -17,18 +17,21 @@ if __FILE__ == $PROGRAM_NAME
       - https://github.com/<owner>/<repo>/pull/<number>
       - <owner>/<repo>/<branch>
       - <branch> (<owner>/<repo> is fetched from the context)
+      - <query> (use the query with https://docs.github.com/en/rest/reference/search, <owner>/<repo> is fetched from the context)
     ENDOFBANNER
 
     opts.separator "\nOptions:"
 
     opts.on('-sLINK', '--slack-link=LINK', 'Deep link for slack, ref https://api.slack.com/reference/deep-linking.')
     opts.on('-a', '--all', 'Loop through all PRs, even the closed ones.')
+    opts.on('-cCOMMAND', '--command=COMMAND', 'Command to apply for all the PRs..')
   end.parse!(into: options)
 
   # Calling the REPL
   REPL.new(
     slack_link: options[:"slack-link"],
-    show_all: options[:all]
+    show_all: options[:all],
+    command: options[:command]
   ).main(
     ARGV
   )

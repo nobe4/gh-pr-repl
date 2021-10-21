@@ -9,18 +9,20 @@ require_relative 'utils'
 # REPL is a simple read-eval print loop that takes pull requests and adds some
 # easy processing on top of them.
 class REPL
-  def initialize(slack_link: nil, show_all: false)
+  def initialize(slack_link: nil, show_all: false, command: nil)
     @slack_link = slack_link
     @show_all = show_all
+    @command = command
 
     @help = []
     @mapping = {}
+    @prs = []
 
     setup_repl
   end
 
-  def main(references = nil)
-    references = [Utils.git_current_pr_url] unless references && !references.empty?
+  def main(references = [Utils.git_current_pr_url])
+    references = Utils.parse_references(references)
 
     references.each do |reference|
       process_reference(reference)
@@ -30,7 +32,7 @@ class REPL
   private
 
   def process_reference(reference)
-    @repo, @number, @branch, @base, closed = Utils.parse_current_reference(reference)
+    @repo, @number, @branch, @base, closed = reference
     @continue = true
 
     if !@show_all && closed == 'true'
@@ -38,12 +40,17 @@ class REPL
       return
     end
 
-    puts "- #{@repo}/#{@branch} (#{@number})".yellow
+    puts "- #{@repo}/#{@branch} (#{@number})".blue
 
     # Command loop
     loop do
-      input = fetch_input
-      process_input(input)
+      if @command
+        print "#{@repo}/#{@branch} > (auto) "
+        process_input(@command)
+        break
+      else
+        process_input(fetch_input)
+      end
 
       break unless @continue
     end
