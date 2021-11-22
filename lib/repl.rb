@@ -145,7 +145,7 @@ class REPL
   def repl_watch(meta: false)
     return { help: "#{'W'.red}atch the status", trigger: 'w' } if meta
 
-    `tmux split-window -h -d "while true; do gh --repo #{@repo} pr checks #{@branch}; sleep 1; done"`
+    `tmux split-window -h -d "while true; do gh --repo #{@repo} pr checks #{@branch}; sleep 5; done"`
   end
 
   def repl_copy(meta: false)
