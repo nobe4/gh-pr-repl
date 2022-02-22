@@ -8,7 +8,7 @@ require_relative 'utils'
 
 # REPL is a simple read-eval print loop that takes pull requests and adds some
 # easy processing on top of them.
-class REPL
+class REPL # rubocop:disable Metrics/ClassLength
   def initialize(slack_link: nil, show_all: false, command: nil)
     @slack_link = slack_link
     @show_all = show_all
@@ -31,21 +31,23 @@ class REPL
 
   private
 
-  def process_reference(reference)
+  def process_reference(reference) # rubocop:disable Metrics/MethodLength
     @repo, @number, @branch, @base, closed = reference
     @continue = true
 
+    label = "#{@repo}/#{@branch} (#{@number})"
+
     if !@show_all && closed == 'true'
-      puts "✓ #{@repo}/#{@branch} (#{@number})".green
+      puts "✓ #{label}".green
       return
     end
 
-    puts "- #{@repo}/#{@branch} (#{@number})".blue
+    puts "- #{label}".blue
 
     # Command loop
     loop do
       if @command
-        print "#{@repo}/#{@branch} > (auto) "
+        print "#{label} > (auto) "
         process_input(@command)
         break
       else

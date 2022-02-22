@@ -4,7 +4,11 @@ source 'https://rubygems.org'
 
 git_source(:github) { |repo_name| "https://github.com/#{repo_name}" }
 
-gem 'irb'
-gem 'pry'
-gem 'pry-byebug'
-gem 'rubocop', require: false
+group :development do
+  gem 'irb'
+  gem 'pry'
+  gem 'pry-byebug'
+  gem 'rspec'
+  gem 'rubocop'
+  gem 'simplecov'
+end
